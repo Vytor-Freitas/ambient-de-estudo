@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vytão-Engineer - Polícia Penal MG</title>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Importações via CDN (Necessário para rodar direto no navegador/VS Code)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // SUAS CREDENCIAIS DO FIREBASE (Integradas corretamente)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDzXxf_dalGOjJ_ADh3nSlkYuHYvMzvO0w",
+            authDomain: "ambiente-de-estudo-43550.firebaseapp.com",
+            projectId: "ambiente-de-estudo-43550",
+            storageBucket: "ambiente-de-estudo-43550.firebasestorage.app",
+            messagingSenderId: "220895066892",
+            appId: "1:220895066892:web:8290428dc86f0a04836729",
+            measurementId: "G-RH3X5HYT4B"
+        };
+
+        // Inicialização do Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // ID do App para organização interna
+        const appId = 'projeto-vytao-v1';
+
+        // Expondo variáveis para o escopo global (window) para que o restante do script funcione
+        window.db = db;
+        window.auth = auth;
+        window.appId = appId;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.getDocs = getDocs;
+        
+        // Sistema de Autenticação Robusto
+        async function initAuth() {
+            try {
+                // Tenta logar como anônimo para permitir leitura/escrita no banco
+                await signInAnonymously(auth);
+                console.log("Autenticação Firebase: Sucesso (Modo Anônimo)");
+            } catch (error) {
+                console.error("Erro na autenticação:", error);
+                alert("Erro ao conectar ao servidor. Verifique se a Autenticação Anônima está ativada no Console do Firebase.");
+            }
+        }
+
+        initAuth();
+    </script>
+
+    <style>
+        /* --- CSS GERAL --- */
+        :root {
+            --primary: #1a237e;
+            --primary-dark: #000051;
+            --secondary: #c62828;
+            --accent: #ffab00;
+            --bg: #f4f6f8;
+            --paper: #ffffff;
+            --text: #333;
+            --success: #2e7d32;
+            --error: #c62828;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- HEADER --- */
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            position: relative;
+            z-index: 10;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .user-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 5px;
+            display: inline-block;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        button.nav-btn {
+            padding: 8px 16px;
+            background-color: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            cursor: pointer;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button.nav-btn:hover {
+            background-color: white;
+            color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        /* --- CONTEÚDO --- */
+        main {
+            flex: 1;
+            padding: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- LOGIN MODAL --- */
+        #login-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(26, 35, 126, 0.98);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            color: #333;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        /* --- WELCOME SCREEN --- */
+        .welcome-screen {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+
+        /* --- SIMULADO --- */
+        .subject-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .subject-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: 0.3s;
+        }
+
+        .subject-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .question-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+            border-top: 4px solid var(--accent);
+            animation: slideUp 0.4s ease;
+        }
+        
+        .question-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .options label {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            margin: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1rem;
+        }
+
+        .options label:hover {
+            background-color: #e8eaf6;
+            border-color: var(--primary);
+        }
+        
+        .options input {
+            margin-right: 15px;
+            margin-top: 5px;
+            transform: scale(1.2);
+        }
+
+        .feedback {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            border-left: 5px solid;
+        }
+        .correct { background-color: #e8f5e9; color: var(--success); border-color: var(--success); }
+        .incorrect { background-color: #ffebee; color: var(--error); border-color: var(--error); }
+        
+        .feedback-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        /* --- REDAÇÃO --- */
+        .redacao-timer-bar {
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-family: monospace;
+            font-size: 1.2rem;
+        }
+        
+        .timer-warning { background: var(--secondary); animation: pulse 1s infinite; }
+
+        .paper-container {
+            background: var(--paper);
+            padding: 40px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        textarea#redacao-area {
+            width: 100%;
+            min-height: 400px;
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            padding: 0 10px;
+            border: none;
+            background-image: linear-gradient(#999 .05rem, transparent .05rem);
+            background-size: 100% 1.5rem;
+            background-position: 0 1.4rem;
+            resize: vertical;
+            outline: none;
+            color: #000;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+        
+        .paper-margin {
+            position: absolute;
+            top: 0; bottom: 0; left: 35px;
+            width: 2px;
+            background-color: #ffcccc;
+            pointer-events: none;
+        }
+
+        /* --- RANKING --- */
+        .ranking-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .ranking-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media(max-width: 768px) {
+            .ranking-cols { grid-template-columns: 1fr; }
+        }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .ranking-table th, .ranking-table td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .ranking-table th {
+            background-color: #f8f9fa;
+            color: var(--primary);
+        }
+
+        /* --- UI ELEMENTS --- */
+        .action-btn {
+            background-color: var(--secondary);
+            color: white;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: 0.3s;
+        }
+
+        .action-btn:hover { background-color: #b71c1c; }
+
+        /* Animações */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        /* Overlay Countdown */
+        #countdown-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(26, 35, 126, 0.95);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #countdown-number { font-size: 8rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN MODAL -->
+<div id="login-modal">
+    <div class="login-box">
+        <i class="fas fa-user-shield fa-3x" style="color: var(--primary); margin-bottom: 20px;"></i>
+        <h2>Identificação Obrigatória</h2>
+        <p>Para registrar seu progresso no Ranking Vytão-Engineer, digite seu nome ou apelido.</p>
+        <input type="text" id="username-input" placeholder="Seu Nome de Guerra" maxlength="20">
+        <button class="action-btn" onclick="registerUser()" style="background: var(--primary); width: 100%;">ENTRAR</button>
+    </div>
+</div>
+
+<header>
+    <div style="display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap;">
+        <i class="fas fa-shield-alt fa-2x"></i>
+        <div>
+            <h1>Vytão-Engineer</h1>
+            <span id="user-badge-display" class="user-badge"><i class="fas fa-user"></i> Visitante</span>
+        </div>
+    </div>
+    
+    <nav>
+        <button class="nav-btn" onclick="showHome()"><i class="fas fa-home"></i> Início</button>
+        <button class="nav-btn" onclick="showSimuladoSelection()"><i class="fas fa-clock"></i> Simulados</button>
+        <button class="nav-btn" onclick="startRedacao()"><i class="fas fa-pen-nib"></i> Redação</button>
+        <button class="nav-btn" onclick="showRanking()"><i class="fas fa-trophy"></i> Ranking</button>
+    </nav>
+</header>
+
+<main id="app-content">
+    <!-- TELA INICIAL -->
+    <div id="home" class="welcome-screen">
+        <h2 id="welcome-msg"><i class="fas fa-user-graduate"></i> Bem-vindo, Vytão!</h2>
+        <p>Seu ambiente de engenharia de aprovação. Sua nota é registrada automaticamente.</p>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <i class="fas fa-book fa-2x" style="color: var(--primary); margin-bottom: 10px;"></i>
+                <h3>Simulados</h3>
+                <p>10 questões por tema com feedback detalhado (AOCP).</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-clock fa-2x" style="color: var(--secondary); margin-bottom: 10px;"></i>
+                <h3>Cronômetro</h3>
+                <p>Redação com timer de 50min para simular pressão.</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-trophy fa-2x" style="color: var(--accent); margin-bottom: 10px;"></i>
+                <h3>Ranking Global</h3>
+                <p>Compare seu desempenho com outros candidatos.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DE SELEÇÃO DE SIMULADO -->
+    <div id="simulado-select" class="hidden">
+        <h2 style="text-align: center; margin-bottom: 30px;">Escolha o Tema do Simulado</h2>
+        <div class="subject-selection">
+            <div class="subject-card" onclick="startCountdown('lep')">
+                <i class="fas fa-gavel"></i>
+                <h3>Lei de Execução Penal</h3>
+                <p>10 Questões | Valendo Nota</p>
+            </div>
+            <div class="subject-card" onclick="startCountdown('const')">
+                <i class="fas fa-balance-scale"></i>
+                <h3>Direito Constitucional</h3>
+                <p>10 Questões | Valendo Nota</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DE QUESTÕES (SIMULADO ATIVO) -->
+    <div id="simulado-active" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3><i class="fas fa-clipboard-list"></i> Simulado <span id="active-subject-name"></span></h3>
+            <span id="score-tracker" style="background: #e3f2fd; color: var(--primary); padding: 5px 10px; border-radius: 4px; font-weight: bold;">0/10 Respondidas</span>
+        </div>
+        
+        <div id="questions-container"></div>
+        
+        <!-- Botão de finalizar aparece após responder tudo -->
+        <div id="finish-simulado-btn" style="text-align: center; margin-top: 20px; display: none;">
+            <button class="action-btn" onclick="finishSimulado()" style="background-color: var(--success);">
+                <i class="fas fa-check-double"></i> Finalizar e Ver Nota
+            </button>
+        </div>
+    </div>
+
+    <!-- TELA REDAÇÃO -->
+    <div id="redacao" class="hidden">
+        <div class="redacao-header">
+            <h3><i class="fas fa-feather-alt"></i> Laboratório de Redação</h3>
+            
+            <div id="redacao-timer" class="redacao-timer-bar">
+                <span><i class="fas fa-stopwatch"></i> Tempo Restante:</span>
+                <span id="timer-display">50:00</span>
+            </div>
+
+            <div class="topic-box" style="background: #fff8e1; padding: 15px; border-left: 5px solid var(--accent); border-radius: 4px;">
+                <strong>TEMA:</strong> <span id="topic-display">Carregando...</span>
+            </div>
+        </div>
+
+        <div class="paper-container">
+            <div class="paper-margin"></div>
+            <textarea id="redacao-area" placeholder="Comece a redigir... O tempo está correndo!" spellcheck="false"></textarea>
+        </div>
+
+        <div style="text-align: right;">
+            <button class="action-btn" onclick="judgeRedacao()">
+                <i class="fas fa-gavel"></i> Avaliar e Enviar Nota
+            </button>
+        </div>
+
+        <div id="redacao-result" class="analysis-box hidden" style="margin-top: 20px; background: white; padding: 20px; border-radius: 8px;"></div>
+    </div>
+
+    <!-- TELA RANKING -->
+    <div id="ranking-screen" class="hidden">
+        <h2 style="text-align: center; margin-bottom: 20px;"><i class="fas fa-trophy" style="color: var(--accent);"></i> Ranking Geral</h2>
+        <p style="text-align: center; margin-bottom: 30px;">Melhores desempenhos registrados no sistema.</p>
+        
+        <div class="ranking-container">
+            <div class="ranking-cols">
+                <div>
+                    <h3 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Top Simulados</h3>
+                    <div id="ranking-simulados-list">Carregando...</div>
+                </div>
+                <div>
+                    <h3 style="color: var(--secondary); border-bottom: 2px solid var(--secondary); padding-bottom: 10px;">Top Redações</h3>
+                    <div id="ranking-redacao-list">Carregando...</div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="action-btn" onclick="loadRankings()" style="background: #555;">Atualizar Lista</button>
+        </div>
+    </div>
+</main>
+
+<!-- COUNTDOWN OVERLAY -->
+<div id="countdown-overlay" class="hidden">
+    <div style="font-size: 1.5rem; margin-bottom: 20px;">Preparar...</div>
+    <div id="countdown-number">5</div>
+</div>
+
+<script>
+    // --- DADOS E ESTADO ---
+    let currentUser = "Visitante";
+    let currentSimuladoScore = 0;
+    let questionsAnsweredCount = 0;
+    let currentSubject = "";
+    let currentQuestions = []; // Armazena as questões atuais para acesso no checkAnswer
+    let redactionInterval;
+
+    const databaseQuestions = [
+        // --- LEP (10 questões completas) ---
+        { 
+            type: 'lep', 
+            q: "A Lei de Execução Penal (Lei nº 7.210/1984) estabelece, em seu artigo 1º, a finalidade da execução penal. Com base nesse dispositivo e na doutrina pertinente, assinale a alternativa que indica corretamente o objetivo da execução penal:", 
+            options: [
+                "A) Efetivar as disposições de sentença ou decisão criminal e proporcionar condições para a harmônica integração social do condenado e do internado.",
+                "B) Punir o condenado com o máximo rigor possível, garantindo o isolamento perpétuo da sociedade.",
+                "C) Apenas vigiar o preso para que ele não cometa novos crimes, sem preocupação com ressocialização.",
+                "D) Aplicar castigos físicos e morais como forma de retribuição pelo mal causado à vítima.",
+                "E) Garantir que o Estado não tenha custos com o sistema prisional, obrigando o preso a pagar por sua estadia."
+            ], 
+            correct: 0,
+            exp: "Art. 1º da LEP: A execução penal tem por objetivo efetivar as disposições de sentença ou decisão criminal e proporcionar condições para a harmônica integração social do condenado e do internado."
+        },
+        { 
+            type: 'lep', 
+            q: "De acordo com o Art. 3º da LEP, ao condenado e ao internado serão assegurados todos os direitos não atingidos pela sentença ou pela lei. Sobre isso, é correto afirmar que:", 
+            options: [
+                "A) O preso perde todos os seus direitos civis e políticos automaticamente.",
+                "B) Não haverá qualquer distinção de natureza racial, social, religiosa ou política.",
+                "C) O Estado pode impor restrições religiosas baseadas na confissão da maioria dos presos.",
+                "D) Os direitos políticos são mantidos integralmente, inclusive o direito de voto para presos condenados em regime fechado.",
+                "E) A distinção social é permitida para presos com ensino superior."
+            ], 
+            correct: 1,
+            exp: "Art. 3º, Parágrafo único: Não haverá qualquer distinção de natureza racial, social, religiosa ou política."
+        },
+        { 
+            type: 'lep', 
+            q: "A assistência ao preso e ao internado é dever do Estado, objetivando prevenir o crime e orientar o retorno à convivência em sociedade. Segundo o Art. 11 da LEP, qual das alternativas abaixo NÃO corresponde a uma das modalidades de assistência previstas?", 
+            options: [
+                "A) Assistência Material.",
+                "B) Assistência à Saúde.",
+                "C) Assistência Financeira para pagamento de dívidas anteriores.",
+                "D) Assistência Jurídica.",
+                "E) Assistência Religiosa."
+            ], 
+            correct: 2,
+            exp: "Art. 11 da LEP prevê assistências: Material, Saúde, Jurídica, Educacional, Social e Religiosa. Não existe previsão de assistência financeira para dívidas."
+        },
+        { 
+            type: 'lep', 
+            q: "O trabalho do condenado, como dever social e condição de dignidade humana, terá finalidade educativa e produtiva. Sobre o trabalho prisional, assinale a alternativa CORRETA:", 
+            options: [
+                "A) O trabalho do preso está sujeito ao regime da Consolidação das Leis do Trabalho (CLT).",
+                "B) O trabalho externo é admissível para os presos em regime fechado, sem necessidade de vigilância direta.",
+                "C) O trabalho do preso não está sujeito ao regime da CLT.",
+                "D) É obrigatório para o preso provisório.",
+                "E) A remuneração do preso não pode ser inferior a dois salários mínimos."
+            ], 
+            correct: 2,
+            exp: "Art. 28, § 2º da LEP: O trabalho do preso não está sujeito ao regime da Consolidação das Leis do Trabalho (CLT)."
+        },
+        { 
+            type: 'lep', 
+            q: "A Lei de Execução Penal classifica as faltas disciplinares em leves, médias e graves. Segundo o Art. 50, comete falta GRAVE o condenado à pena privativa de liberdade que:", 
+            options: [
+                "A) Deixar de limpar sua cela diariamente.",
+                "B) Incitar ou participar de movimento para subverter a ordem ou a disciplina.",
+                "C) Reclamar da comida servida no refeitório.",
+                "D) Receber visita fora do horário estipulado, sem causar tumulto.",
+                "E) Não comparecer ao trabalho por motivo de doença."
+            ], 
+            correct: 1,
+            exp: "Art. 50, I da LEP: Comete falta grave o condenado à pena privativa de liberdade que incitar ou participar de movimento para subverter a ordem ou a disciplina."
+        },
+        {
+            type: 'lep',
+            q: "Sobre o Regime Disciplinar Diferenciado (RDD), previsto no Art. 52 da LEP, assinale a alternativa correta quanto às suas características atuais:",
+            options: [
+                "A) Terá duração máxima de 360 dias, sem prejuízo de repetição da sanção.",
+                "B) Duração máxima de até 2 (dois) anos, sem prejuízo de repetição da sanção por nova falta grave de mesma espécie.",
+                "C) O preso terá direito a visitas íntimas semanais.",
+                "D) O banho de sol será de 4 horas diárias, em grupo.",
+                "E) É aplicado apenas para presos provisórios."
+            ],
+            correct: 1,
+            exp: "Art. 52, I: Duração máxima de até 2 (dois) anos, sem prejuízo de repetição da sanção por nova falta grave de mesma espécie."
+        },
+        {
+            type: 'lep',
+            q: "A Comissão Técnica de Classificação (CTC) tem papel fundamental na individualização da pena. Segundo o Art. 7º da LEP, quem deve presidir essa comissão?",
+            options: [
+                "A) O Juiz da Execução.",
+                "B) O Promotor de Justiça.",
+                "C) O Defensor Público.",
+                "D) O Diretor do estabelecimento.",
+                "E) O Chefe de Segurança."
+            ],
+            correct: 3,
+            exp: "Art. 7º: A Comissão Técnica de Classificação será presidida pelo diretor do estabelecimento."
+        },
+        {
+            type: 'lep',
+            q: "As autorizações de saída são benefícios previstos na LEP. Sobre a 'Permissão de Saída' (Art. 120), é correto afirmar que:",
+            options: [
+                "A) É concedida pelo Juiz da Execução.",
+                "B) Aplica-se apenas aos condenados em regime semiaberto.",
+                "C) É concedida pelo diretor do estabelecimento, em casos de falecimento ou doença grave de familiar.",
+                "D) Permite a saída do preso por até 7 dias sem vigilância.",
+                "E) Depende de oitiva do Ministério Público."
+            ],
+            correct: 2,
+            exp: "Art. 120: A permissão de saída será concedida pelo diretor do estabelecimento, mediante escolta, nos casos de falecimento ou doença grave."
+        },
+        {
+            type: 'lep',
+            q: "Para a concessão da progressão de regime, a Lei exige o cumprimento de requisitos objetivos (tempo) e subjetivos. Qual é o requisito subjetivo indispensável?",
+            options: [
+                "A) Pagamento de fiança.",
+                "B) Bom comportamento carcerário, comprovado pelo diretor do estabelecimento.",
+                "C) Aprovação em exame criminológico (obrigatório para todos os casos).",
+                "D) Ter cometido crime sem violência.",
+                "E) Ser réu primário."
+            ],
+            correct: 1,
+            exp: "Art. 112: A pena será cumprida em forma progressiva... se o apenado ostentar bom comportamento carcerário, comprovado pelo diretor."
+        },
+        {
+            type: 'lep',
+            q: "Os órgãos da execução penal estão listados no Art. 61 da LEP. Qual das alternativas abaixo NÃO apresenta um órgão da execução penal?",
+            options: [
+                "A) O Conselho Nacional de Política Criminal e Penitenciária.",
+                "B) O Juízo da Execução.",
+                "C) O Ministério Público.",
+                "D) O Conselho da Comunidade.",
+                "E) A Ordem dos Advogados do Brasil (OAB)."
+            ],
+            correct: 4,
+            exp: "A OAB não consta no rol taxativo do Art. 61 da LEP como órgão da execução penal, embora a Defensoria Pública conste."
+        },
+        
+        // --- CONSTITUCIONAL (10 questões completas) ---
+        { 
+            type: 'const', 
+            q: "O Art. 5º da Constituição Federal de 1988 estabelece os direitos e garantias fundamentais. Sobre o direito à vida e a pena de morte no Brasil, é correto afirmar:", 
+            options: [
+                "A) A pena de morte é permitida em qualquer caso de crime hediondo.",
+                "B) Não haverá pena de morte, salvo em caso de guerra declarada, nos termos do art. 84, XIX.",
+                "C) A pena de morte é absolutamente vedada, sem exceções.",
+                "D) É permitida a pena de morte para crimes de terrorismo.",
+                "E) A Constituição permite a pena de morte, mas o Código Penal proíbe."
+            ], 
+            correct: 1,
+            exp: "Art. 5º, XLVII, 'a': não haverá penas de morte, salvo em caso de guerra declarada."
+        },
+        { 
+            type: 'const', 
+            q: "Sobre a inviolabilidade domiciliar prevista no Art. 5º, XI da CF/88, assinale a alternativa que descreve corretamente as exceções constitucionais para entrada na casa sem consentimento do morador:", 
+            options: [
+                "A) A qualquer hora do dia ou da noite, mediante ordem judicial.",
+                "B) Apenas em caso de flagrante delito.",
+                "C) Em caso de flagrante delito ou desastre, ou para prestar socorro, ou, durante o dia, por determinação judicial.",
+                "D) Sempre que a autoridade policial julgar necessário para a investigação.",
+                "E) Apenas durante o dia, em caso de flagrante ou ordem judicial."
+            ], 
+            correct: 2,
+            exp: "Art. 5º, XI: a casa é asilo inviolável... salvo em caso de flagrante delito ou desastre, ou para prestar socorro, ou, durante o dia, por determinação judicial."
+        },
+        { 
+            type: 'const', 
+            q: "A Constituição Federal define, em seu Art. 144, os órgãos responsáveis pela segurança pública. Com a promulgação da Emenda Constitucional nº 104/2019, foi incluído expressamente no rol desses órgãos:", 
+            options: [
+                "A) A Força Nacional de Segurança.",
+                "B) As Guardas Municipais.",
+                "C) As Polícias Penais Federal, Estaduais e Distrital.",
+                "D) A Polícia do Exército.",
+                "E) O Departamento Penitenciário Nacional (DEPEN)."
+            ], 
+            correct: 2,
+            exp: "EC 104/2019 alterou o Art. 144 para incluir o inciso VI: as polícias penais federal, estaduais e distrital."
+        },
+        { 
+            type: 'const', 
+            q: "No tocante aos remédios constitucionais, qual é a ação adequada para proteger direito líquido e certo, não amparado por habeas corpus ou habeas data, quando o responsável pela ilegalidade ou abuso de poder for autoridade pública ou agente de pessoa jurídica no exercício de atribuições do Poder Público?", 
+            options: [
+                "A) Mandado de Injunção.",
+                "B) Ação Popular.",
+                "C) Habeas Corpus.",
+                "D) Mandado de Segurança.",
+                "E) Ação Civil Pública."
+            ], 
+            correct: 3,
+            exp: "Art. 5º, LXIX: conceder-se-á mandado de segurança para proteger direito líquido e certo, não amparado por habeas corpus ou habeas data..."
+        },
+        { 
+            type: 'const', 
+            q: "O Art. 5º, XLII, da Constituição Federal estabelece que a prática do racismo constitui crime:", 
+            options: [
+                "A) Afiançável e prescritível.",
+                "B) Inafiançável e imprescritível, sujeito à pena de reclusão.",
+                "C) Inafiançável e suscetível de graça ou anistia.",
+                "D) De menor potencial ofensivo.",
+                "E) Punido apenas com multa."
+            ], 
+            correct: 1,
+            exp: "Art. 5º, XLII: a prática do racismo constitui crime inafiançável e imprescritível, sujeito à pena de reclusão."
+        },
+        {
+            type: 'const',
+            q: "Segundo o Art. 5º da CF/88, é livre a manifestação do pensamento, sendo vedado:",
+            options: [
+                "A) A crítica a autoridades públicas.",
+                "B) O anonimato.",
+                "C) A expressão artística em praça pública.",
+                "D) A publicação de livros religiosos.",
+                "E) O debate político na internet."
+            ],
+            correct: 1,
+            exp: "Art. 5º, IV: é livre a manifestação do pensamento, sendo vedado o anonimato."
+        },
+        {
+            type: 'const',
+            q: "Sobre a prisão, a Constituição determina que ninguém será preso senão em flagrante delito ou:",
+            options: [
+                "A) Por ordem escrita e fundamentada de autoridade judiciária competente.",
+                "B) Para averiguação policial.",
+                "C) Por ordem verbal de delegado de polícia.",
+                "D) Por suspeita de crime hediondo.",
+                "E) Por denúncia anônima não confirmada."
+            ],
+            correct: 0,
+            exp: "Art. 5º, LXI: ninguém será preso senão em flagrante delito ou por ordem escrita e fundamentada de autoridade judiciária competente."
+        },
+        {
+            type: 'const',
+            q: "Qual dos seguintes princípios NÃO está expressamente previsto no Art. 37 (Administração Pública) da Constituição Federal (LIMPE)?",
+            options: [
+                "A) Legalidade.",
+                "B) Impessoalidade.",
+                "C) Moralidade.",
+                "D) Celeridade.",
+                "E) Eficiência."
+            ],
+            correct: 3,
+            exp: "O Art. 37 lista: Legalidade, Impessoalidade, Moralidade, Publicidade e Eficiência. Celeridade é um princípio processual (Art. 5º, LXXVIII)."
+        },
+        {
+            type: 'const',
+            q: "As Polícias Penais são vinculadas a qual órgão, segundo o § 5º-A do Art. 144 da CF?",
+            options: [
+                "A) Ao Poder Judiciário.",
+                "B) Ao Ministério Público.",
+                "C) Ao órgão administrador do sistema penal da unidade federativa a que pertencem.",
+                "D) À Polícia Civil.",
+                "E) Ao Governador diretamente."
+            ],
+            correct: 2,
+            exp: "Art. 144, § 5º-A: vinculadas ao órgão administrador do sistema penal da unidade federativa a que pertencem."
+        },
+        {
+            type: 'const',
+            q: "Sobre a extradição, a Constituição Federal estabelece que:",
+            options: [
+                "A) O brasileiro nato pode ser extraditado em caso de tráfico de drogas.",
+                "B) Nenhum brasileiro será extraditado, salvo o naturalizado, em caso de crime comum, praticado antes da naturalização, ou de comprovado envolvimento em tráfico ilícito de entorpecentes e drogas afins.",
+                "C) O brasileiro naturalizado nunca pode ser extraditado.",
+                "D) A extradição por crime político ou de opinião é permitida.",
+                "E) O estrangeiro não pode ser extraditado."
+            ],
+            correct: 1,
+            exp: "Art. 5º, LI: nenhum brasileiro será extraditado, salvo o naturalizado, em caso de crime comum, praticado antes da naturalização, ou de comprovado envolvimento em tráfico... (após a naturalização)."
+        }
+    ];
+
+    const essayTopics = [
+        "Desafios da ressocialização no sistema prisional.",
+        "A Polícia Penal e o combate ao crime organizado.",
+        "Tecnologia e monitoramento nas prisões.",
+        "Maioridade penal no Brasil.",
+        "Dignidade humana e superlotação carcerária."
+    ];
+
+    // --- FUNÇÕES DE USUÁRIO (LOGIN) ---
+    function registerUser() {
+        const input = document.getElementById('username-input');
+        const name = input.value.trim();
+        if (name.length < 3) {
+            alert("Por favor, digite um nome com pelo menos 3 letras.");
+            return;
+        }
+        currentUser = name;
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('welcome-msg').innerText = `Bem-vindo, ${currentUser}!`;
+        document.getElementById('user-badge-display').innerHTML = `<i class="fas fa-user-check"></i> ${currentUser}`;
+        
+        // Salva localmente para conveniência na sessão
+        localStorage.setItem('vytao_user', currentUser);
+    }
+
+    // --- NAVEGAÇÃO ---
+    function hideAll() {
+        const screens = ['home', 'simulado-select', 'simulado-active', 'redacao', 'ranking-screen'];
+        screens.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        document.getElementById('redacao-result').classList.add('hidden');
+        clearInterval(redactionInterval); // Para o timer se sair da tela
+    }
+
+    function showHome() { hideAll(); document.getElementById('home').classList.remove('hidden'); }
+    function showSimuladoSelection() { hideAll(); document.getElementById('simulado-select').classList.remove('hidden'); }
+    
+    function showRanking() { 
+        hideAll(); 
+        document.getElementById('ranking-screen').classList.remove('hidden');
+        loadRankings(); 
+    }
+
+    // --- LÓGICA DO SIMULADO ---
+    function startCountdown(subjectType) {
+        currentSubject = subjectType;
+        hideAll();
+        document.getElementById('countdown-overlay').classList.remove('hidden');
+        let count = 3;
+        const display = document.getElementById('countdown-number');
+        display.innerText = count;
+
+        const timer = setInterval(() => {
+            count--;
+            display.innerText = count;
+            if (count <= 0) {
+                clearInterval(timer);
+                document.getElementById('countdown-overlay').classList.add('hidden');
+                loadSimulado(subjectType);
+            }
+        }, 1000);
+    }
+
+    function loadSimulado(type) {
+        document.getElementById('simulado-active').classList.remove('hidden');
+        const container = document.getElementById('questions-container');
+        document.getElementById('active-subject-name').innerText = type === 'lep' ? "LEP" : "Constitucional";
+        
+        // Reset Estado
+        currentSimuladoScore = 0;
+        questionsAnsweredCount = 0;
+        document.getElementById('score-tracker').innerText = "0/10 Respondidas";
+        document.getElementById('finish-simulado-btn').style.display = "none";
+
+        // Filtra e Salva na variável global
+        currentQuestions = databaseQuestions.filter(q => q.type === type).slice(0, 10);
+        container.innerHTML = "";
+
+        currentQuestions.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            
+            let optionsHtml = '';
+            item.options.forEach((opt, optIndex) => {
+                const optLetter = opt.charAt(0); // Pega A, B, C...
+                optionsHtml += `
+                    <label>
+                        <input type="radio" name="q${index}" value="${optIndex}" onchange="checkAnswer(this, ${index}, ${optIndex})">
+                        <span>${opt}</span>
+                    </label>
+                `;
+            });
+
+            card.innerHTML = `
+                <div><strong>QUESTÃO ${index + 1}</strong></div>
+                <div class="question-text">${item.q}</div>
+                <div class="options">${optionsHtml}</div>
+                <div id="feedback-${index}" class="feedback hidden"></div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function checkAnswer(input, qIndex, choice) {
+        const question = currentQuestions[qIndex];
+        const correct = question.correct;
+        const feedback = document.getElementById(`feedback-${qIndex}`);
+        const inputs = document.getElementsByName(`q${qIndex}`);
+        
+        // Trava questão
+        inputs.forEach(i => i.disabled = true); 
+
+        questionsAnsweredCount++;
+        document.getElementById('score-tracker').innerText = `${questionsAnsweredCount}/10 Respondidas`;
+
+        if (choice === correct) {
+            currentSimuladoScore++;
+            feedback.innerHTML = `
+                <span class="feedback-title"><i class="fas fa-check-circle"></i> RESPOSTA CORRETA!</span>
+                ${question.exp}
+            `;
+            feedback.className = "feedback correct";
+        } else {
+            // Pega a letra da resposta certa para mostrar
+            const correctText = question.options[correct];
+            feedback.innerHTML = `
+                <span class="feedback-title"><i class="fas fa-times-circle"></i> RESPOSTA INCORRETA!</span>
+                <div style="margin-bottom:10px;">A alternativa correta é a <strong>${correctText.substring(0, 1)}</strong>.</div>
+                <strong>Explicação:</strong> ${question.exp}
+            `;
+            feedback.className = "feedback incorrect";
+        }
+        feedback.classList.remove('hidden');
+
+        // Se respondeu todas, mostra botão de finalizar
+        if (questionsAnsweredCount >= 10) {
+            document.getElementById('finish-simulado-btn').style.display = 'block';
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    }
+
+    async function finishSimulado() {
+        if (!window.auth.currentUser) {
+            alert("Aguarde a conexão com o banco de dados e tente novamente.");
+            return;
+        }
+
+        const percent = (currentSimuladoScore / 10) * 100;
+        
+        // Salvar no Firebase
+        try {
+            await window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'rankings'), {
+                name: currentUser,
+                score: percent,
+                type: 'simulado',
+                subject: currentSubject === 'lep' ? 'LEP' : 'Const.',
+                date: new Date().toISOString()
+            });
+            alert(`Simulado Finalizado!\nSua Nota: ${currentSimuladoScore}/10 (${percent}%)\nRegistrado no Ranking.`);
+            showRanking();
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao salvar nota. Verifique sua conexão.");
+        }
+    }
+
+    // --- LÓGICA DA REDAÇÃO ---
+    function startRedacao() {
+        hideAll();
+        document.getElementById('redacao').classList.remove('hidden');
+        document.getElementById('redacao-area').value = "";
+        
+        // Tema
+        const topic = essayTopics[Math.floor(Math.random() * essayTopics.length)];
+        document.getElementById('topic-display').innerText = topic;
+
+        // Timer 50min
+        let timeLeft = 50 * 60; // segundos
+        const timerDisplay = document.getElementById('timer-display');
+        const timerBox = document.getElementById('redacao-timer');
+        
+        timerBox.classList.remove('timer-warning');
+        
+        redactionInterval = setInterval(() => {
+            timeLeft--;
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${m}:${s}`;
+
+            if (timeLeft < 300) timerBox.classList.add('timer-warning'); // 5 min finais
+            
+            if (timeLeft <= 0) {
+                clearInterval(redactionInterval);
+                alert("TEMPO ESGOTADO!");
+                judgeRedacao();
+            }
+        }, 1000);
+    }
+
+    async function judgeRedacao() {
+        clearInterval(redactionInterval);
+        
+        if (!window.auth.currentUser) {
+            alert("Aguarde a conexão com o banco de dados e tente novamente.");
+            return;
+        }
+
+        const text = document.getElementById('redacao-area').value.trim();
+        const resultDiv = document.getElementById('redacao-result');
+        
+        if (text.length < 50) { alert("Texto muito curto para avaliar."); return; }
+
+        // Algoritmo Simples de Nota
+        let score = 0;
+        const words = text.split(/\s+/).length;
+        const paragraphs = text.split(/\n\n|\r\n\r\n|\n/).filter(p => p.length > 20).length;
+
+        if (paragraphs >= 3) score += 40; else score += 10;
+        if (words > 150) score += 40; else score += 20;
+        if (text.includes("conclui") || text.includes("portanto")) score += 20;
+
+        // Visualização
+        resultDiv.innerHTML = `<h3>Nota Preliminar: ${score}/100</h3><p>Estrutura analisada.</p>`;
+        resultDiv.classList.remove('hidden');
+
+        // Salvar Firebase
+        try {
+            await window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'rankings'), {
+                name: currentUser,
+                score: score,
+                type: 'redacao',
+                subject: 'Geral',
+                date: new Date().toISOString()
+            });
+            setTimeout(() => { if(confirm("Nota registrada! Ir para o Ranking?")) showRanking(); }, 500);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // --- RANKING ---
+    async function loadRankings() {
+        const simList = document.getElementById('ranking-simulados-list');
+        const redList = document.getElementById('ranking-redacao-list');
+        
+        simList.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+        redList.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+        
+        if (!window.auth.currentUser) {
+             simList.innerHTML = "Conectando ao servidor...";
+             redList.innerHTML = "Conectando ao servidor...";
+             // Tenta novamente em breve
+             setTimeout(loadRankings, 2000);
+             return;
+        }
+
+        try {
+            const q = window.getDocs(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'rankings'));
+            const snapshot = await q;
+            
+            let data = [];
+            snapshot.forEach(doc => data.push(doc.data()));
+
+            // Ordenar por Nota (Maior para menor)
+            data.sort((a, b) => b.score - a.score);
+
+            const simulados = data.filter(d => d.type === 'simulado').slice(0, 10);
+            const redacoes = data.filter(d => d.type === 'redacao').slice(0, 10);
+
+            function renderTable(items) {
+                if (items.length === 0) return '<p>Nenhum registro ainda.</p>';
+                let html = `<table class="ranking-table"><tr><th>Nome</th><th>Nota</th><th>Data</th></tr>`;
+                items.forEach(item => {
+                    const date = new Date(item.date).toLocaleDateString('pt-BR');
+                    html += `<tr><td>${item.name}</td><td><strong>${Math.round(item.score)}</strong></td><td style="font-size:0.8rem">${date}</td></tr>`;
+                });
+                html += '</table>';
+                return html;
+            }
+
+            simList.innerHTML = renderTable(simulados);
+            redList.innerHTML = renderTable(redacoes);
+
+        } catch (e) {
+            console.error(e);
+            simList.innerHTML = "Erro ao carregar ranking.";
+            redList.innerHTML = "Erro ao carregar ranking.";
+        }
+    }
+
+    // Check Login Inicial
+    window.onload = function() {
+        const saved = localStorage.getItem('vytao_user');
+        if (saved) {
+            document.getElementById('username-input').value = saved;
+        }
+    }
+</script>
+
+</body>
+</html>
