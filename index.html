@@ -690,9 +690,13 @@
             }
         }
 
+        // Tenta pegar o UID ou usa um temporário se falhar muito
+        const uid = auth.currentUser ? auth.currentUser.uid : 'anon-' + new Date().getTime();
+
         try {
             // Tenta salvar no Firebase
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'rankings'), { 
+                userId: uid,
                 name: userName || "Anônimo", 
                 score, 
                 date: new Date().toISOString(),
@@ -795,3 +799,4 @@
 </script>
 </body>
 </html>
+
