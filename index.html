@@ -7,7 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Google AdSense - Script Principal -->
+    <!-- Biblioteca para gerar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
 
     <style>
@@ -16,9 +19,14 @@
         .penal-gradient { background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 100%); }
         .ufmg-gradient { background: linear-gradient(135deg, #991b1b 0%, #450a0a 100%); }
         
-        .option-card:hover input + div { border-color: #3b82f6; background-color: #eff6ff; }
-        input:checked + div { border-color: #1e40af; background-color: #dbeafe; }
-
+        /* Estilos para o feedback visual das questões */
+        .option-card { transition: all 0.2s; }
+        .option-card input:checked + div { border-color: #1e40af; background-color: #dbeafe; }
+        
+        /* Classes aplicadas via JS após responder */
+        .option-card.correct div { background-color: #dcfce7 !important; border-color: #22c55e !important; color: #14532d; }
+        .option-card.wrong div { background-color: #fee2e2 !important; border-color: #ef4444 !important; color: #7f1d1d; }
+        
         .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -36,9 +44,40 @@
             display: block;
             overflow: hidden;
         }
+
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .toast {
+            min-width: 300px;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-left: 4px solid;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast-success { border-left-color: #22c55e; }
+        .toast-error { border-left-color: #ef4444; }
+        .toast-info { border-left-color: #3b82f6; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
 
 <!-- HEADER -->
 <header class="penal-gradient text-white sticky top-0 z-50 shadow-xl">
@@ -61,45 +100,30 @@
                 <i class="fas fa-trophy"></i> Ranking
             </button>
             <button onclick="handleLogout()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-semibold transition-all">
-                <i class="fas fa-sign-out-alt"></i>
+                <i class="fas fa-sign-out-alt"></i> Sair
             </button>
         </nav>
     </div>
 </header>
 
-<!-- AUTH MODAL -->
+<!-- AUTH MODAL (SIMPLIFICADO - APENAS NICK) -->
 <div id="login-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/95 p-4 transition-opacity duration-500">
-    <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl text-center">
+    <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl text-center relative">
         <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i class="fas fa-graduation-cap text-2xl text-blue-700"></i>
+            <i class="fas fa-user-astronaut text-2xl text-blue-700"></i>
         </div>
-        <h2 id="auth-title" class="text-2xl font-bold text-slate-800 mb-2">Plataforma VF.DEV</h2>
-        <p class="text-slate-500 mb-6 text-sm text-balance">Estude para PPMG e concursos da UFMG (PRORH) em um só lugar.</p>
+        <h2 class="text-2xl font-bold text-slate-800 mb-2">Identificação</h2>
+        <p class="text-slate-500 mb-6 text-sm">Digite seu Nickname (Apelido) para acessar os simulados e ter seu nome no ranking.</p>
         
-        <button onclick="handleGoogleLogin()" class="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-xl transition-all mb-4">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" alt="Google">
-            Entrar com Google
-        </button>
-
-        <div class="relative my-6">
-            <div class="absolute inset-0 flex items-center"><span class="w-full border-t"></span></div>
-            <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-slate-400">Ou e-mail</span></div>
+        <div class="space-y-4">
+            <input type="text" id="nickname-input" placeholder="Seu apelido..." class="w-full px-4 py-4 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none text-lg text-center font-bold text-slate-700" maxlength="20">
+            
+            <button onclick="handleNickLogin()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]">
+                ENTRAR NO HUB
+            </button>
         </div>
-
-        <div class="space-y-3">
-            <input type="email" id="email-input" placeholder="E-mail" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none text-sm">
-            <input type="password" id="password-input" placeholder="Palavra-passe" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none text-sm">
-            <input type="text" id="nickname-input" placeholder="Alcunha para o Ranking" class="hidden w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none text-sm">
-        </div>
-
-        <button id="auth-submit" onclick="handleAuthSubmit()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition-all shadow-lg mt-6">
-            ENTRAR
-        </button>
-
-        <div class="mt-4 text-sm text-slate-500">
-            <span id="auth-toggle-text">Ainda não tem conta?</span>
-            <button onclick="toggleAuthMode()" class="text-blue-600 font-bold hover:underline ml-1" id="auth-toggle-btn">Criar Conta</button>
-        </div>
+        
+        <p class="mt-6 text-xs text-slate-400">Ao entrar, seus resultados serão salvos no Hall da Fama.</p>
     </div>
 </div>
 
@@ -142,7 +166,7 @@
         </div>
     </section>
 
-    <!-- EXAMS SELECTION (NEW LAYER) -->
+    <!-- EXAMS SELECTION -->
     <section id="section-exams" class="hidden animate-fadeIn space-y-6">
         <div class="flex items-center gap-4 mb-6">
             <button onclick="navigate('hub')" class="w-10 h-10 rounded-full bg-white shadow-sm border flex items-center justify-center text-slate-400 hover:text-slate-800 transition-colors"><i class="fas fa-arrow-left"></i></button>
@@ -175,7 +199,7 @@
 
     <!-- SIMULADO SCREEN -->
     <section id="section-active-simulado" class="hidden">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-[80px] z-40">
             <div class="flex items-center gap-3">
                 <button onclick="navigate('subjects')" class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><i class="fas fa-arrow-left"></i></button>
                 <h2 class="text-xl font-bold text-slate-800" id="simulado-title">Simulado</h2>
@@ -184,12 +208,16 @@
                 <div class="flex-grow md:w-48 bg-slate-200 h-2 rounded-full overflow-hidden">
                     <div id="progress-bar" class="bg-blue-600 h-full w-0 transition-all duration-500"></div>
                 </div>
-                <div class="font-bold text-blue-700 whitespace-nowrap" id="simulado-counter">0/10</div>
+                <div class="font-bold text-blue-700 whitespace-nowrap" id="simulado-counter">0/20</div>
             </div>
         </div>
         <div id="questions-area" class="space-y-6"></div>
-        <div id="finish-simulado-area" class="hidden py-10 text-center">
-            <button onclick="saveSimuladoResult()" class="bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 px-10 rounded-2xl shadow-xl transition-all hover:scale-105">CONSOLIDAR RESULTADO</button>
+        <div id="finish-simulado-area" class="hidden py-10 text-center space-y-4">
+            <button onclick="saveSimuladoResult()" class="bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 px-10 rounded-2xl shadow-xl transition-all hover:scale-105 w-full md:w-auto">CONSOLIDAR RESULTADO</button>
+            
+            <button onclick="downloadResultPDF()" class="bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 font-bold py-3 px-8 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 w-full md:w-auto mx-auto">
+                <i class="fas fa-file-pdf text-red-500"></i> BAIXAR GABARITO (PDF)
+            </button>
         </div>
     </section>
 
@@ -235,94 +263,87 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
-
-    // --- FIREBASE CONFIG (ATUALIZADO) ---
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
         apiKey: "AIzaSyDzXxf_dalGOjJ_ADh3nSlkYuHYvMzvO0w",
         authDomain: "ambiente-de-estudo-43550.firebaseapp.com",
         projectId: "ambiente-de-estudo-43550",
         storageBucket: "ambiente-de-estudo-43550.firebasestorage.app",
         messagingSenderId: "220895066892",
-        appId: "1:220895066892:web:8290428dc86f0a04836729",
-        measurementId: "G-RH3X5HYT4B"
+        appId: "1:220895066892:web:33370a72e40df87f836729",
+        measurementId: "G-NPGKL5T9R0"
     };
     
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const analytics = getAnalytics(app);
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vf-dev-hub-v1';
 
     // --- GLOBAL STATE ---
     let user = null;
-    let userName = "Estudante Visitante";
-    let isRegistering = false;
+    let userName = "";
     let currentInstitution = 'ppmg';
     let currentExamId = '';
     let activeQuestions = [];
     let currentScore = 0;
     let answeredCount = 0;
+    let userAnswers = []; // Armazena as respostas para o PDF
     let allRankingsData = [];
     let currentRankingFilter = 'all';
-    const apiKey = ""; 
 
-    // --- AUTH LOGIC ---
-    window.handleGoogleLogin = async () => {
-        const provider = new GoogleAuthProvider();
-        try {
-            const result = await signInWithPopup(auth, provider);
-            // Salvar o nome do Google como alcunha se ainda não existir
-            if (result.user) {
-                const existingNick = localStorage.getItem(`nick_${result.user.uid}`);
-                if (!existingNick) {
-                    localStorage.setItem(`nick_${result.user.uid}`, result.user.displayName);
-                }
-            }
-        } catch (e) { alert("Erro ao acessar com Google. Tente novamente."); console.error(e); }
+    // --- TOAST UTILS ---
+    window.showToast = (message, type = 'info') => {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        let iconClass = 'fa-info-circle';
+        if(type === 'success') iconClass = 'fa-check-circle text-green-500';
+        if(type === 'error') iconClass = 'fa-exclamation-circle text-red-500';
+        if(type === 'info') iconClass = 'fa-info-circle text-blue-500';
+
+        toast.innerHTML = `
+            <div class="flex items-center gap-3">
+                <i class="fas ${iconClass} text-lg"></i>
+                <span class="text-slate-700 text-sm font-medium">${message}</span>
+            </div>
+        `;
+        
+        container.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('show'));
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     };
 
-    window.handleAuthSubmit = async () => {
-        const email = document.getElementById('email-input').value.trim();
-        const password = document.getElementById('password-input').value;
-        const nickname = document.getElementById('nickname-input').value.trim();
-        if (!email || !password) return alert("Preencha os campos obrigatórios.");
+    // --- AUTH LOGIC (NICKNAME ONLY) ---
+    window.handleNickLogin = async () => {
+        const nickInput = document.getElementById('nickname-input');
+        const nick = nickInput.value.trim();
+        
+        if (!nick) return showToast("Por favor, digite um apelido para entrar.", 'error');
+        if (nick.length < 3) return showToast("O apelido deve ter pelo menos 3 caracteres.", 'error');
+
         try {
-            if (isRegistering) {
-                if (!nickname) return alert("Defina uma alcunha.");
-                const res = await createUserWithEmailAndPassword(auth, email, password);
-                localStorage.setItem(`nick_${res.user.uid}`, nickname);
-            } else {
-                await signInWithEmailAndPassword(auth, email, password);
-            }
-        } catch (e) { alert("Falha na autenticação: Verifique os dados."); }
-    };
-
-    window.toggleAuthMode = () => {
-        isRegistering = !isRegistering;
-        const nick = document.getElementById('nickname-input');
-        const title = document.getElementById('auth-title');
-        const submit = document.getElementById('auth-submit');
-        const toggleBtn = document.getElementById('auth-toggle-btn');
-        const toggleText = document.getElementById('auth-toggle-text');
-
-        if (isRegistering) {
-            nick.classList.remove('hidden');
-            title.innerText = "Criar Conta";
-            submit.innerText = "REGISTAR";
-            toggleBtn.innerText = "Entrar";
-            toggleText.innerText = "Já tem conta?";
-        } else {
-            nick.classList.add('hidden');
-            title.innerText = "Iniciar Sessão";
-            submit.innerText = "ENTRAR";
-            toggleBtn.innerText = "Criar Conta";
-            toggleText.innerText = "Ainda não tem conta?";
+            await signInAnonymously(auth);
+            localStorage.setItem('user_nick', nick);
+            userName = nick;
+            document.getElementById('display-name').innerText = userName;
+            document.getElementById('login-modal').classList.add('hidden');
+            showToast(`Bem-vindo, ${nick}!`, 'success');
+        } catch(e) { 
+            console.error(e);
+            showToast("Erro ao conectar. Tente novamente.", 'error'); 
         }
     };
 
-    window.handleLogout = () => signOut(auth).then(() => window.location.reload());
+    window.handleLogout = () => signOut(auth).then(() => {
+        localStorage.removeItem('user_nick');
+        window.location.reload();
+    });
 
     // --- DATA STRUCTURE (EDITAL-BASED) ---
     const INSTITUTIONS_DATA = {
@@ -336,7 +357,8 @@
                     pdfUrl: 'https://www.institutoaocp.org.br/concursos/672', 
                     subjects: [
                         { id: 'lep', name: 'Lei de Execução Penal', icon: 'fa-gavel' },
-                        { id: 'const', name: 'Direito Constitucional', icon: 'fa-balance-scale' }
+                        { id: 'const', name: 'Direito Constitucional', icon: 'fa-balance-scale' },
+                        { id: 'leg_esp', name: 'Legislação Especial', icon: 'fa-book-open' } // ADICIONADO
                     ]
                 }
             ]
@@ -368,66 +390,53 @@
         }
     };
 
+    // --- BANCO DE QUESTÕES (ATUALIZADO COM 20 QUESTÕES DO PDF) ---
     const DB_QUESTIONS = [
-        // --- PPMG: Lei de Execução Penal (LEP) ---
+        // --- PPMG: LEGISLAÇÃO ESPECIAL (20 Questões do PDF) ---
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Segundo o entendimento do STF no julgamento do RE 635659 (Tema 506), o porte de cannabis sativa para uso pessoal:", options: ["A) Continua sendo crime com pena privativa de liberdade.", "B) É infração penal sujeita à prisão simples.", "C) Foi descriminalizado, tornando-se ilícito administrativo sem natureza penal.", "D) Deixou de ser qualquer tipo de ilícito."], correct: 2, exp: "Decisão do STF: O porte de maconha para uso pessoal não é crime, mas subsiste como ilícito administrativo." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Sobre a 'majorante da arma de fogo' no tráfico (art. 40, IV da Lei 11.343/2006), o STJ entende que:", options: ["A) Só se aplica se a arma for disparada.", "B) Aplica-se se houver nexo funcional entre a arma e o tráfico (usada para proteção/intimidação).", "C) Nunca se aplica a réus primários.", "D) Exige apreensão da arma em mãos do traficante."], correct: 1, exp: "Para a incidência da majorante, basta que a arma seja utilizada como instrumento para assegurar o sucesso da traficância (proteção/intimidação)." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Sobre o 'tráfico privilegiado' (art. 33, §4°), marque a alternativa correta:", options: ["A) É considerado crime hediondo.", "B) Não permite substituição da pena.", "C) Aplica-se apenas a réus primários e de bons antecedentes, não dedicados à atividade criminosa.", "D) Exige participação em organização criminosa."], correct: 2, exp: "Requisitos: ser primário, ter bons antecedentes, não se dedicar a atividades criminosas nem integrar organização criminosa." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Assinale a opção que indica um crime considerado HEDIONDO pela Lei 8.072/90:", options: ["A) Furto simples.", "B) Roubo circunstanciado pelo emprego de arma branca.", "C) Posse ou porte ilegal de arma de fogo de uso proibido.", "D) Lesão corporal leve."], correct: 2, exp: "O Pacote Anticrime incluiu a posse/porte de arma de uso proibido no rol dos hediondos." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Qual dos crimes abaixo NÃO é considerado hediondo?", options: ["A) Lesão corporal gravíssima contra agente de segurança.", "B) Sequestro e cárcere privado (simples, art. 148).", "C) Furto qualificado pelo emprego de explosivo.", "D) Estupro."], correct: 1, exp: "O sequestro simples (art. 148) não é hediondo. A Extorsão mediante Sequestro (art. 159) é que é." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "De acordo com a Lei 8.072/90, os crimes hediondos são insuscetíveis de:", options: ["A) Progressão de regime.", "B) Anistia, graça e indulto.", "C) Prisão temporária.", "D) Liberdade provisória."], correct: 1, exp: "Art. 2º, I: Os crimes hediondos são insuscetíveis de anistia, graça e indulto." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "A divergência na interpretação de lei ou avaliação de fatos e provas (Lei de Abuso de Autoridade):", options: ["A) Configura crime de abuso.", "B) É agravante.", "C) Não configura abuso de autoridade.", "D) Depende do juiz."], correct: 2, exp: "Art. 1º, § 2º: A divergência na interpretação de lei ou na avaliação de fatos e provas não configura abuso de autoridade." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Constitui crime de abuso de autoridade (Lei 13.869/19):", options: ["A) Prestar socorro.", "B) Deixar de comunicar imediatamente a prisão de qualquer pessoa à família.", "C) Usar algemas em caso de resistência.", "D) Interrogar durante o dia."], correct: 1, exp: "É crime deixar de comunicar a prisão imediatamente à família ou pessoa indicada." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Prosseguir com o interrogatório de pessoa que tenha decidido exercer o direito ao silêncio é:", options: ["A) Procedimento padrão.", "B) Crime de Abuso de Autoridade.", "C) Infração administrativa apenas.", "D) Permitido se houver advogado."], correct: 1, exp: "Viola o direito ao silêncio e é tipificado como abuso de autoridade." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Submeter preso capturado em flagrante a interrogatório no período de repouso noturno (sem consentimento):", options: ["A) É permitido sempre.", "B) É Crime de Abuso de Autoridade.", "C) É permitido se houver urgência policial.", "D) É mera irregularidade."], correct: 1, exp: "Art. 18 da Lei 13.869/19 veda interrogatório noturno salvo flagrante ou consentimento." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Para adquirir arma de fogo de uso permitido (Lei 10.826/03), a idade mínima é:", options: ["A) 18 anos.", "B) 21 anos.", "C) 25 anos.", "D) 30 anos."], correct: 2, exp: "Art. 28: Idade mínima de 25 anos." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Portar arma de fogo de uso permitido com numeração raspada configura:", options: ["A) Porte ilegal de arma de uso permitido.", "B) Posse irregular.", "C) Crime equiparado a porte de arma de uso restrito.", "D) Contravenção penal."], correct: 2, exp: "A supressão da numeração (art. 16) equipara a conduta ao porte de arma de uso restrito." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Frentista que usa arma registrada no trabalho (sem ser o dono da empresa e sem porte) para se defender:", options: ["A) Age em estrita legalidade.", "B) Comete crime de Porte Ilegal de Arma de Fogo.", "C) Comete Posse Irregular.", "D) Não comete crime se agir em legítima defesa."], correct: 1, exp: "O registro permite manter a arma em casa ou no trabalho (se for o titular). Funcionário portando arma comete crime de porte." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Lei Maria da Penha: Para configurar violência doméstica, a coabitação:", options: ["A) É indispensável.", "B) É irrelevante.", "C) Não é obrigatória, bastando relação íntima de afeto.", "D) Só vale para casados."], correct: 2, exp: "Art. 5º, III: em qualquer relação íntima de afeto, independente de coabitação." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Marido que humilha a esposa constantemente, diminuindo sua autoestima, comete:", options: ["A) Violência Física.", "B) Violência Psicológica.", "C) Violência Patrimonial.", "D) Apenas falta de educação."], correct: 1, exp: "Art. 7º, II: Violência psicológica (dano emocional, diminuição da autoestima)." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Medida protetiva de urgência que obriga o agressor:", options: ["A) Prestação de serviços à comunidade.", "B) Suspensão da posse ou restrição do porte de armas.", "C) Pagamento de cesta básica.", "D) Prisão perpétua."], correct: 1, exp: "Art. 22: O juiz pode determinar a suspensão da posse ou restrição do porte de armas." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "Lei de Tortura: Aquele que se omite quando tinha o dever de evitar a tortura responde por:", options: ["A) Crime de Tortura (Reclusão).", "B) Crime de Omissão perante a Tortura (Detenção).", "C) Prevaricação.", "D) Não responde por crime."], correct: 1, exp: "Art. 1º, § 2º: A omissão é punida com detenção de 1 a 4 anos." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "A pena base para o crime de tortura (causar sofrimento físico/mental) é:", options: ["A) Detenção.", "B) Reclusão.", "C) Prisão simples.", "D) Multa."], correct: 1, exp: "A regra para o crime de tortura é Reclusão. Apenas a omissão é Detenção." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "LEP: A remição de pena pelo trabalho é na proporção de:", options: ["A) 1 dia de pena por 1 dia trabalhado.", "B) 1 dia de pena por 2 dias trabalhados.", "C) 1 dia de pena por 3 dias trabalhados.", "D) 2 dias de pena por 3 dias trabalhados."], correct: 2, exp: "Art. 126: O condenado poderá remir 1 dia de pena a cada 3 dias de trabalho." },
+
+        { examId: 'ppmg_2026', type: 'leg_esp', q: "O Regime Disciplinar Diferenciado (RDD) tem duração máxima de:", options: ["A) 360 dias.", "B) 1 ano.", "C) Até 2 anos, podendo ser repetido.", "D) 6 meses."], correct: 2, exp: "Alteração do Pacote Anticrime: prazo de até 2 anos, renovável em caso de nova falta grave." },
+
+        // --- OUTRAS MATÉRIAS (Mantidas) ---
         { examId: 'ppmg_2026', type: 'lep', q: "A assistência ao preso é dever do Estado. Qual NÃO é uma assistência prevista no Art. 11?", options: ["A) Material", "B) Jurídica", "C) Financeira para lazer", "D) Religiosa"], correct: 2, exp: "Art. 11: A assistência será: material, à saúde, jurídica, educacional, social e religiosa. Financeira para lazer não existe." },
         { examId: 'ppmg_2026', type: 'lep', q: "A CTC (Comissão Técnica de Classificação) é presidida por:", options: ["A) Juiz da Execução", "B) Diretor do estabelecimento", "C) Delegado", "D) Promotor"], correct: 1, exp: "Art. 7º: A CTC será presidida pelo diretor do estabelecimento." },
-        { examId: 'ppmg_2026', type: 'lep', q: "Ao condenado e ao internado serão assegurados todos os direitos não atingidos pela sentença ou lei. É proibida a distinção de natureza:", options: ["A) Racial, social, religiosa ou política", "B) Apenas racial", "C) Econômica apenas", "D) Nenhuma distinção é proibida"], correct: 0, exp: "Art. 3º, Parágrafo único." },
-        { examId: 'ppmg_2026', type: 'lep', q: "O trabalho externo para presos em regime fechado é permitido?", options: ["A) Nunca", "B) Sim, em obras públicas com cautela", "C) Sim, em qualquer empresa", "D) Apenas com monitoramento"], correct: 1, exp: "Art. 36: Admissível apenas em serviço ou obras públicas." },
-        { examId: 'ppmg_2026', type: 'lep', q: "Comete falta GRAVE o condenado que:", options: ["A) Reclama da comida", "B) Incita subversão da ordem", "C) Chega atrasado", "D) Não limpa a cela"], correct: 1, exp: "Art. 50, I: Incitar ou participar de movimento para subverter a ordem ou a disciplina." },
-        { examId: 'ppmg_2026', type: 'lep', q: "Qual a duração máxima do RDD (Regime Disciplinar Diferenciado)?", options: ["A) 360 dias", "B) Até 2 anos", "C) 1 ano", "D) Indeterminado"], correct: 1, exp: "Art. 52, I: Duração máxima de até 2 anos." },
-        { examId: 'ppmg_2026', type: 'lep', q: "A permissão de saída em caso de falecimento de parente é concedida por:", options: ["A) Juiz", "B) Diretor do estabelecimento", "C) MP", "D) Conselho"], correct: 1, exp: "Art. 120: Concedida pelo diretor do estabelecimento." },
-        { examId: 'ppmg_2026', type: 'lep', q: "O trabalho do preso provisório é:", options: ["A) Obrigatório", "B) Facultativo", "C) Proibido", "D) Remunerado em dobro"], correct: 1, exp: "Art. 31, Parágrafo único: O trabalho do preso provisório não é obrigatório." },
-        { examId: 'ppmg_2026', type: 'lep', q: "A remição de pena pelo trabalho ocorre na proporção de:", options: ["A) 1 dia de pena a cada 3 trabalhados", "B) 1 para 1", "C) 2 para 3", "D) 10 para 1"], correct: 0, exp: "Art. 126, § 1º, II: 1 dia de pena a cada 3 dias de trabalho." },
-        { examId: 'ppmg_2026', type: 'lep', q: "Os órgãos da execução penal incluem, EXCETO:", options: ["A) Conselho Nacional de Política Criminal", "B) Juízo da Execução", "C) OAB", "D) Conselho Penitenciário"], correct: 2, exp: "A OAB não é órgão da execução penal (Art. 61)." },
-
-        // --- PPMG: Direito Constitucional ---
-        { examId: 'ppmg_2026', type: 'const', q: "Não haverá pena de morte, salvo em caso de:", options: ["A) Terrorismo", "B) Guerra declarada", "C) Homicídio qualificado", "D) Tráfico"], correct: 1, exp: "Art. 5º, XLVII, 'a'." },
-        { examId: 'ppmg_2026', type: 'const', q: "A casa é asilo inviolável. Durante a noite, só se pode entrar:", options: ["A) Por ordem judicial", "B) Em flagrante, desastre ou socorro", "C) Por suspeita", "D) Com autorização do delegado"], correct: 1, exp: "Art. 5º, XI." },
-        { examId: 'ppmg_2026', type: 'const', q: "As Polícias Penais são vinculadas a:", options: ["A) Judiciário", "B) Órgão adm. do sistema penal", "C) Polícia Civil", "D) Ministério da Justiça"], correct: 1, exp: "Art. 144, § 5º-A." },
-        { examId: 'ppmg_2026', type: 'const', q: "Racismo é crime:", options: ["A) Afiançável", "B) Inafiançável e imprescritível", "C) Prescritível", "D) De menor potencial"], correct: 1, exp: "Art. 5º, XLII." },
-        { examId: 'ppmg_2026', type: 'const', q: "Remédio para proteger direito líquido e certo:", options: ["A) Habeas Corpus", "B) Mandado de Segurança", "C) Habeas Data", "D) Ação Popular"], correct: 1, exp: "Art. 5º, LXIX." },
-        { examId: 'ppmg_2026', type: 'const', q: "São princípios da Administração Pública (LIMPE), exceto:", options: ["A) Legalidade", "B) Celeridade", "C) Moralidade", "D) Eficiência"], correct: 1, exp: "Celeridade não está no caput do Art. 37 (é princípio processual)." },
-        { examId: 'ppmg_2026', type: 'const', q: "Brasileiro nato pode ser extraditado?", options: ["A) Nunca", "B) Sim, por tráfico", "C) Sim, se perder a nacionalidade", "D) Sim, por terrorismo"], correct: 0, exp: "Art. 5º, LI: Nenhum brasileiro será extraditado, salvo o naturalizado." },
-        { examId: 'ppmg_2026', type: 'const', q: "A tortura é crime:", options: ["A) Afiançável", "B) Inafiançável e insuscetível de graça", "C) Prescritível", "D) Anistiável"], correct: 1, exp: "Art. 5º, XLIII." },
-        { examId: 'ppmg_2026', type: 'const', q: "A segurança pública é dever:", options: ["A) Do Estado apenas", "B) Do Estado, direito e responsabilidade de todos", "C) Das Forças Armadas", "D) Da Polícia Federal"], correct: 1, exp: "Art. 144, caput." },
-        { examId: 'ppmg_2026', type: 'const', q: "É livre a manifestação do pensamento, sendo vedado:", options: ["A) A crítica", "B) O anonimato", "C) A arte", "D) O debate"], correct: 1, exp: "Art. 5º, IV." },
-
-        // --- UFMG: Língua Portuguesa ---
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Em 'Ele chegou cedo', o termo 'cedo' é:", options: ["A) Adjetivo", "B) Advérbio", "C) Verbo", "D) Conjunção"], correct: 1, exp: "Indica circunstância de tempo (advérbio)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Assinale a crase correta:", options: ["A) Fomos à praia", "B) Andar à pé", "C) Referiu-se à ele", "D) Cara à cara"], correct: 0, exp: "'Praia' é feminino e admite artigo 'a'. As outras opções estão erradas." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Qual palavra é paroxítona?", options: ["A) Café", "B) Mesa", "C) Cântico", "D) Anel"], correct: 1, exp: "A sílaba tônica é a penúltima (ME-sa)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "O verbo 'haver' no sentido de existir:", options: ["A) Tem plural", "B) É impessoal (sempre singular)", "C) Concorda com o sujeito", "D) Nenhuma das anteriores"], correct: 1, exp: "Haver (existir) é impessoal." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Antônimo de 'efêmero':", options: ["A) Breve", "B) Duradouro", "C) Rápido", "D) Passageiro"], correct: 1, exp: "Efêmero é passageiro; duradouro é o oposto." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "'Mim' não conjuga verbo. A frase correta é:", options: ["A) Para mim fazer", "B) Para eu fazer", "C) Entre eu e você", "D) Mim gosta"], correct: 1, exp: "Sujeito de infinitivo deve ser o pronome reto 'eu'." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Figura de linguagem em 'Chorou rios de lágrimas':", options: ["A) Metáfora", "B) Hipérbole", "C) Antítese", "D) Pleonasmo"], correct: 1, exp: "Hipérbole é o exagero intencional." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Regência correta de 'assistir' (ver):", options: ["A) Assistir o filme", "B) Assistir ao filme", "C) Assistir no filme", "D) Assistir do filme"], correct: 1, exp: "Exige preposição 'a'." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Plural de 'cidadão':", options: ["A) Cidadões", "B) Cidadãos", "C) Cidadães", "D) Cidadãoes"], correct: 1, exp: "A forma correta é cidadãos." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_pt', q: "Uso do porquê em final de frase:", options: ["A) Porque", "B) Por que", "C) Porquê", "D) Por quê"], correct: 3, exp: "Separado e com acento em final de frase." },
-
-        // --- UFMG: Legislação (8.112) ---
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Segundo a 8.112, a demissão gera:", options: ["A) Provimento", "B) Vacância", "C) Readaptação", "D) Remoção"], correct: 1, exp: "Demissão desocupa o cargo (vacância)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Validade do concurso público:", options: ["A) 1 ano", "B) Até 2 anos, prorrogável", "C) 4 anos fixos", "D) 5 anos"], correct: 1, exp: "Art. 12: Até 2 anos, prorrogável uma vez." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "A investidura em cargo público ocorre com:", options: ["A) Nomeação", "B) Posse", "C) Exercício", "D) Aprovação"], correct: 1, exp: "Art. 7º: A investidura ocorrerá com a posse." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Estágio probatório tem duração de:", options: ["A) 24 meses", "B) 3 anos (36 meses)", "C) 12 meses", "D) 4 anos"], correct: 1, exp: "CF/88 alterou para 3 anos." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Reintegração é o retorno do servidor:", options: ["A) Aposentado", "B) Demitido invalidada a demissão", "C) Em disponibilidade", "D) Readaptado"], correct: 1, exp: "Art. 28: Retorno do demitido quando invalidada a demissão." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Prazo para posse após nomeação:", options: ["A) 15 dias", "B) 30 dias", "C) 60 dias", "D) 10 dias"], correct: 1, exp: "Art. 13, § 1º: 30 dias." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "É proibido ao servidor:", options: ["A) Participar de gerência de empresa privada", "B) Tirar férias", "C) Se sindicalizar", "D) Fazer greve"], correct: 0, exp: "Art. 117, X: Proibido participar de gerência ou administração de sociedade privada." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Remoção a pedido, para acompanhar cônjuge:", options: ["A) Depende de vaga", "B) Independe de vaga", "C) É proibida", "D) Apenas no mesmo estado"], correct: 1, exp: "Art. 36, parágrafo único, III, 'a'." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Readaptação ocorre por:", options: ["A) Promoção", "B) Limitação física ou mental", "C) Idade", "D) Vontade política"], correct: 1, exp: "Art. 24." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_leg', q: "Aposentadoria compulsória ocorre aos:", options: ["A) 70 anos", "B) 75 anos", "C) 65 anos", "D) 60 anos"], correct: 1, exp: "Atualmente 75 anos (LC 152/2015)." },
-
-        // --- UFMG: Adm. Pública ---
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "São princípios explícitos no Art. 37 (LIMPE), exceto:", options: ["A) Legalidade", "B) Impessoalidade", "C) Proporcionalidade", "D) Publicidade"], correct: 2, exp: "Proporcionalidade é princípio implícito." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Ato administrativo deve ter:", options: ["A) Competência, Finalidade, Forma, Motivo, Objeto", "B) Apenas Motivo", "C) Apenas Forma", "D) Vontade do agente"], correct: 0, exp: "Requisitos: CO-FI-FO-MO-OB." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "A desconcentração administrativa cria:", options: ["A) Entes (Pessoas Jurídicas)", "B) Órgãos (dentro da mesma PJ)", "C) Empresas privadas", "D) ONGs"], correct: 1, exp: "Desconcentração = Órgãos (mesma pessoa)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "A descentralização administrativa cria:", options: ["A) Órgãos", "B) Entidades (Nova Pessoa Jurídica)", "C) Departamentos", "D) Seções"], correct: 1, exp: "Descentralização = Entidades (nova pessoa)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Poder que permite aplicar sanções:", options: ["A) Hierárquico", "B) Disciplinar", "C) Normativo", "D) Vinculado"], correct: 1, exp: "Poder Disciplinar." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Abuso de poder pode ser:", options: ["A) Excesso de poder ou desvio de finalidade", "B) Apenas excesso", "C) Apenas desvio", "D) Uso correto"], correct: 0, exp: "Gênero abuso tem duas espécies: excesso e desvio." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Licitação é dispensável em:", options: ["A) Obras grandes", "B) Emergência ou calamidade", "C) Compra de material comum", "D) Contratação de qualquer serviço"], correct: 1, exp: "Art. 75 da Lei 14.133 (Nova Lei de Licitações)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Responsabilidade civil do Estado é:", options: ["A) Subjetiva", "B) Objetiva", "C) Inexistente", "D) Penal"], correct: 1, exp: "Art. 37, § 6º da CF: Objetiva (independe de dolo/culpa)." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Bens públicos de uso comum:", options: ["A) Prédio da prefeitura", "B) Praças e ruas", "C) Veículos oficiais", "D) Terrenos baldios"], correct: 1, exp: "Uso comum do povo." },
-        { examId: 'ufmg_tae_2025', type: 'ufmg_adm', q: "Improbidade administrativa gera:", options: ["A) Prisão perpétua", "B) Suspensão dos direitos políticos", "C) Apenas multa", "D) Apenas advertência"], correct: 1, exp: "Art. 37, § 4º da CF." }
+        { examId: 'ppmg_2026', type: 'const', q: "Não haverá pena de morte, salvo em caso de:", options: ["A) Terrorismo", "B) Guerra declarada", "C) Homicídio qualificado", "D) Tráfico"], correct: 1, exp: "Art. 5º, XLVII, 'a'." }
     ];
 
     // --- UI NAVIGATION ---
@@ -472,7 +481,7 @@
         const exam = inst.exams.find(e => e.id === examId);
         
         if (exam.status === 'planned') {
-            alert("Atenção: Este concurso está PREVISTO. Os simulados serão liberados assim que o edital oficial for publicado.");
+            showToast("Atenção: Este concurso está PREVISTO. Os simulados serão liberados assim que o edital oficial for publicado.", 'info');
             return;
         }
 
@@ -497,21 +506,29 @@
 
     // --- SIMULADO ---
     window.startSimulado = (subjectId) => {
-        activeQuestions = DB_QUESTIONS.filter(q => q.examId === currentExamId && q.type === subjectId).sort(() => Math.random() - 0.5).slice(0, 10);
+        // Filtrar e selecionar 20 questões
+        let filtered = DB_QUESTIONS.filter(q => q.examId === currentExamId && q.type === subjectId);
+        
+        // Se for legislação especial, embaralha e pega as 20
+        // Se for outra materia, faz o mesmo (se houver questoes suficientes)
+        activeQuestions = filtered.sort(() => Math.random() - 0.5).slice(0, 20);
         
         if (activeQuestions.length === 0) {
-            alert("Simulado em preparação para este edital específico!");
+            showToast("Simulado em preparação para este edital específico!", 'info');
             return;
         }
 
         currentScore = 0; 
         answeredCount = 0;
-        
+        userAnswers = new Array(activeQuestions.length).fill(null); // Resetar vetor de respostas
+
         const inst = INSTITUTIONS_DATA[currentInstitution];
         const exam = inst.exams.find(e => e.id === currentExamId);
         const subObj = exam.subjects.find(s => s.id === subjectId);
         
         document.getElementById('simulado-title').innerText = subObj ? subObj.name : "Simulado";
+        document.getElementById('simulado-counter').innerText = `0/${activeQuestions.length}`;
+        
         renderQuestions();
         updateUI();
         navigate('active-simulado');
@@ -520,12 +537,12 @@
     function renderQuestions() {
         const area = document.getElementById('questions-area');
         area.innerHTML = activeQuestions.map((q, i) => `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 animate-fadeIn">
+            <div id="q-card-${i}" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 animate-fadeIn">
                 <p class="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">Questão ${i+1}</p>
                 <p class="text-slate-800 font-bold mb-6 text-lg leading-relaxed">${q.q}</p>
                 <div class="space-y-3">
                     ${q.options.map((opt, oi) => `
-                        <label class="option-card block cursor-pointer">
+                        <label id="opt-label-${i}-${oi}" class="option-card block cursor-pointer">
                             <input type="radio" name="q${i}" class="hidden" onchange="answer(${i}, ${oi})">
                             <div class="p-4 rounded-2xl border-2 border-slate-100 transition-all flex items-center gap-4">
                                 <span class="w-8 h-8 rounded-full border-2 border-slate-200 flex items-center justify-center text-xs font-bold text-slate-400">${String.fromCharCode(65+oi)}</span>
@@ -543,15 +560,39 @@
         const q = activeQuestions[qi];
         const fb = document.getElementById(`feedback-${qi}`);
         const inputs = document.querySelectorAll(`input[name="q${qi}"]`);
+        
         inputs.forEach(i => i.disabled = true);
-        answeredCount++;
+        
+        // --- FEEDBACK VISUAL ---
+        const correctLabel = document.getElementById(`opt-label-${qi}-${q.correct}`);
+        if(correctLabel) correctLabel.classList.add('correct');
+
         const isCorrect = oi === q.correct;
+        
+        if (!isCorrect) {
+            const wrongLabel = document.getElementById(`opt-label-${qi}-${oi}`);
+            if(wrongLabel) wrongLabel.classList.add('wrong');
+        }
+
+        // --- SALVAR DADOS PARA O PDF ---
+        userAnswers[qi] = {
+            question: q.q,
+            options: q.options,
+            selected: oi,
+            correct: q.correct,
+            explanation: q.exp,
+            isCorrect: isCorrect
+        };
+
+        answeredCount++;
         if (isCorrect) currentScore++;
+        
         fb.className = `mt-6 p-5 rounded-2xl border ${isCorrect ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'} block animate-fadeIn`;
         fb.innerHTML = `
             <p class="font-bold text-xs uppercase mb-2"><i class="fas ${isCorrect ? 'fa-check' : 'fa-times'} mr-2"></i>${isCorrect ? 'Resposta Correta' : 'Resposta Incorreta'}</p>
-            <div class="text-slate-600 text-sm leading-relaxed p-3 bg-white/50 rounded-xl"><strong>Informativo:</strong> ${q.exp}</div>
+            <div class="text-slate-600 text-sm leading-relaxed p-3 bg-white/50 rounded-xl"><strong>Fundamentação:</strong> ${q.exp}</div>
         `;
+        
         updateUI();
         if (answeredCount === activeQuestions.length) document.getElementById('finish-simulado-area').classList.remove('hidden');
     };
@@ -561,6 +602,73 @@
         document.getElementById('simulado-counter').innerText = `${answeredCount}/${activeQuestions.length}`;
     }
 
+    // --- GERADOR DE PDF ---
+    window.downloadResultPDF = () => {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Cabeçalho
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.text("Relatório de Desempenho - VF.DEV Hub", 20, 20);
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Estudante: ${userName}`, 20, 30);
+        doc.text(`Data: ${new Date().toLocaleDateString()}`, 20, 36);
+        const score = Math.round((currentScore/activeQuestions.length)*100);
+        doc.text(`Nota Final: ${score}% (${currentScore} de ${activeQuestions.length})`, 20, 42);
+
+        let y = 55;
+        const pageHeight = doc.internal.pageSize.height;
+
+        userAnswers.forEach((ans, i) => {
+            if (!ans) return;
+
+            // Quebra de página
+            if (y > pageHeight - 50) {
+                doc.addPage();
+                y = 20;
+            }
+
+            // Questão
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            
+            const questionText = `Q${i+1}) ${ans.question}`;
+            const splitQuestion = doc.splitTextToSize(questionText, 170);
+            doc.text(splitQuestion, 20, y);
+            y += (splitQuestion.length * 5) + 3;
+
+            // Resposta do Usuário
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            const selectedText = `Sua resposta: ${ans.options[ans.selected]}`;
+            // Verde se acertou, Vermelho se errou
+            doc.setTextColor(ans.isCorrect ? 0 : 200, ans.isCorrect ? 100 : 0, 0); 
+            doc.text(selectedText, 25, y);
+            y += 5;
+
+            // Resposta Correta (apenas se errou)
+            if (!ans.isCorrect) {
+                doc.setTextColor(0, 100, 0); // Verde escuro
+                doc.text(`Gabarito: ${ans.options[ans.correct]}`, 25, y);
+                y += 5;
+            }
+
+            // Explicação
+            doc.setTextColor(80, 80, 80); // Cinza
+            doc.setFont("helvetica", "italic");
+            const expText = `Motivo: ${ans.explanation}`;
+            const splitExp = doc.splitTextToSize(expText, 160);
+            doc.text(splitExp, 25, y);
+            y += (splitExp.length * 4) + 10; // Espaço entre questões
+        });
+
+        doc.save(`simulado_vf_dev_${userName}_${new Date().getTime()}.pdf`);
+    };
+
     window.saveSimuladoResult = async () => {
         const score = (currentScore/activeQuestions.length)*100;
         try {
@@ -569,32 +677,27 @@
                 score, 
                 date: new Date().toISOString(),
                 exam: currentExamId,
-                institution: currentInstitution // Added institution field for easier filtering
+                institution: currentInstitution
             });
-            alert(`Concluído! Aproveitamento: ${Math.round(score)}%`);
+            showToast(`Resultado salvo no Ranking!`, 'success');
             navigate('ranking');
-        } catch (e) { alert("Erro ao salvar resultado."); }
+        } catch (e) { showToast("Erro ao salvar resultado.", 'error'); }
     };
 
     // --- RANKING LOGIC ---
     window.setRankingFilter = (filter) => {
         currentRankingFilter = filter;
-        
-        // Update Buttons UI
         document.querySelectorAll('[id^="btn-rank-"]').forEach(btn => {
             const isSelected = btn.id === `btn-rank-${filter}`;
             btn.className = isSelected 
                 ? "px-6 py-2 rounded-full text-sm font-bold bg-blue-600 text-white shadow-md transition-all"
                 : "px-6 py-2 rounded-full text-sm font-bold bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-600 transition-all";
         });
-
         renderRankingList();
     };
 
     function renderRankingList() {
         const list = document.getElementById('ranking-list');
-        
-        // Filter Data
         let filteredData = allRankingsData;
         if (currentRankingFilter !== 'all') {
             filteredData = allRankingsData.filter(d => {
@@ -603,15 +706,11 @@
                 return true;
             });
         }
-
-        // Limit to top 10 after filter
         const topData = filteredData.slice(0, 10);
-
         if (topData.length === 0) { 
             list.innerHTML = `<p class="text-center text-slate-400 py-10">Ainda não há pontuações para esta categoria.</p>`; 
             return; 
         }
-
         list.innerHTML = topData.map((d, i) => `
             <div class="flex items-center justify-between p-4 rounded-2xl ${i < 3 ? 'bg-amber-50 border border-amber-100 shadow-sm' : 'bg-slate-50'} transition-all hover:scale-[1.01]">
                 <div class="flex items-center gap-3">
@@ -627,13 +726,11 @@
     }
 
     function loadRankings() {
-        // Fetch more initially to allow client-side filtering
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'rankings'), orderBy('score', 'desc'), limit(100));
-        
         onSnapshot(q, (s) => {
             allRankingsData = [];
             s.forEach(doc => allRankingsData.push(doc.data()));
-            renderRankingList(); // Initial render
+            renderRankingList();
         }, () => {
             document.getElementById('ranking-list').innerHTML = "Erro ao carregar ranking.";
         });
@@ -653,26 +750,19 @@
         onAuthStateChanged(auth, (u) => {
             user = u;
             if (u) {
-                const savedNick = localStorage.getItem(`nick_${u.uid}`) || u.displayName || u.email?.split('@')[0] || "Visitante";
-                userName = savedNick;
-                document.getElementById('display-name').innerText = userName;
-                document.getElementById('login-modal').classList.add('hidden');
-                navigate('hub');
-                loadRankings();
+                const savedNick = localStorage.getItem('user_nick');
+                if (savedNick) {
+                    userName = savedNick;
+                    document.getElementById('display-name').innerText = userName;
+                    document.getElementById('login-modal').classList.add('hidden');
+                    navigate('hub');
+                    loadRankings(); 
+                } else {
+                    document.getElementById('login-modal').classList.remove('hidden');
+                }
             } else {
                 document.getElementById('login-modal').classList.remove('hidden');
             }
-        });
-
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                try {
-                    const ads = document.querySelectorAll('.adsbygoogle');
-                    ads.forEach(ad => {
-                        if (ad.offsetWidth > 0) (window.adsbygoogle = window.adsbygoogle || []).push({});
-                    });
-                } catch (e) {}
-            }, 1000);
         });
     }
 
